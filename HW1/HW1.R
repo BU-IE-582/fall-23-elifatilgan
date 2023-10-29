@@ -1,0 +1,457 @@
+require(data.table, quietly = TRUE)
+require(skimr)
+require(ggcorrplot)
+require(GGally)
+require(ggplot2)
+require(TTR)
+require(psych)
+#We first read both formats of the data.
+#Task 4.1
+data_path_wide='/Users/efemyuksel/Downloads/all_ticks_wide.csv'
+data_wide = fread(data_path_wide)
+data_path_long='/Users/efemyuksel/Downloads/all_ticks_long.csv'
+data_long = fread(data_path_long)
+
+#Let us take a closer at both formats:
+str(data_wide)
+str(data_long)
+head(data_wide,10)
+head(data_long,10)
+summary(data_wide)
+summary(data_long)
+
+#Here, we learn that each column is numerical except for timestamp in the wide data and we learn the format of the timestamp.
+# Summarizing the long data we learn that the data is recorded from 2012-09-17 6:45 to 2019-07-23 15:00. We also learn the
+#price range for all closing prices which is 139.429
+#Summarizing the wide data, we get a feeling of each company's closing prices' distributions and shapes. We can see important
+#statistics like mean or median for closing prices of each company.
+
+
+#Easy way to check how many rows there are with missing values in wide data is the following:
+sum(!complete.cases(data_wide))
+colSums(is.na(data_wide))
+#If we look at it in terms of columns,around 75% of ISDMR's closing prices are missing.Even the second column 
+#with most missing data is only lacking 14% of data points. A quick Google search reveals that ISDMR joined the stock
+#market in 2016, and since data is from 2012-2019, only 3 years of data is recorded. We may choose to delete this
+#column from the data later on.
+
+#For visualizations, we use the long data:
+
+big_companies <- c("OTKAR","TURPS","CCOLA","FROTO","PGSUS") #companies with mean stock prices higher than the others.
+small_companies <- c("ISYAT","TSKB","CEMAS","USAK","ZOREN") #companies with mean stock prices lower than the others.
+big_companies_data <- data_long[data_long$short_name %in% big_companies,]
+small_companies_data <- data_long[data_long$short_name %in% small_companies]
+# Create a line plot for big companies
+big_plot <- ggplot(big_companies_data, aes(x = timestamp, y = price, color = short_name)) +
+  geom_line() +
+  labs(title = "Stock Prices for Big Companies",
+       x = "Timestamp",
+       y = "Closing Price") +
+  scale_color_manual(values = c("OTKAR" = "blue", "TURPS" = "green", "CCOLA" = "red", "FROTO" = "purple", "PGSUS" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Create a line plot for small companies
+small_plot <- ggplot(small_companies_data, aes(x = timestamp, y = price, color = short_name)) +
+  geom_line() +
+  labs(title = "Stock Prices for Small Companies",
+       x = "Timestamp",
+       y = "Closing Price") +
+  scale_color_manual(values = c("ISYAT" = "blue", "TSKB" = "green", "CEMAS" = "red", "USAK" = "purple", "ZOREN" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Display the plots side by side
+library(gridExtra)
+grid.arrange(big_plot, small_plot, ncol = 2)
+
+
+
+#To identify patterns we may look at moving averages I choose some random companies that I am interested in: 
+companies <- c("ARCLK","ASELS","CCOLA","AEFES","YATAS")
+# Create empty data frame to store the results
+sma <- data.frame()
+
+# Iterate through the list of companies and calculate moving averages
+for (company in companies) {
+  data <- data_long[data_long$short_name %in% company, ]
+  
+  # Calculate 30-timestamp Simple Moving Average which on the average corresponds to a working day
+  data$sma_30 <- SMA(data$price, n = 30)
+  
+  # Calculate 900-timestamp Simple Moving Average which on the average corresponds to a month
+  data$sma_900 <- SMA(data$price, n = 900)
+  
+  # Append the results to the respective data frames
+  sma <- rbind(sma, data)
+}
+
+# Now we can move on with the visualization
+
+SMA30_plot <- ggplot(sma, aes(x = timestamp, y = sma_30, color = short_name)) +
+  geom_line() +
+  labs(title = "Daily Moving Average of Chosen Companies",
+       x = "Timestamp") +
+  scale_color_manual(values = c("ARCLK" = "blue", "ASELS" = "green", "CCOLA" = "red", "AEFES" = "purple", "YATAS" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+SMA900_plot <- ggplot(sma, aes(x = timestamp, y = sma_900, color = short_name)) +
+  geom_line() +
+  labs(title = "Monthly Moving Average for Chosen Companies",
+       x = "Timestamp") +
+  scale_color_manual(values = c("ARCLK" = "blue", "ASELS" = "green", "CCOLA" = "red", "AEFES" = "purple", "YATAS" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+grid.arrange(SMA30_plot, SMA900_plot, ncol = 2)
+
+#We can see from the graph that the underlying trend does not change since stock prices of very known companies 
+#show relatively low volatility. Monthly MA is the somewhat smoothed version of the daily MA due to aggregation.
+
+
+#Since we are going to work with wide data in most analyses other than visualizations, I will look at the structure of
+#the wide data more carefully.
+summary <- describe(data_wide[,-1])
+print(summary)
+#These table can be commented on based on some different perspectives:
+  #a. Company variability: Table shows the variety in the stock data of different companies. For example, "OTKAR" has 
+#a substantial range with high maximum value, may be indicating high price fluctuations, while "ISYAT" has a much smaller
+#range suggesting less volatility.
+  #b. Central Tendency: The mean and median values indicate the central tendency of the stock prices for each company. "OTKAR"
+#has the highest mean and median, implying higher average prices compared to others.
+  #c. Dispersion: The sd and range values provide information about the spread or dispersion of stock prices. Companies like
+#"OTKAR" and "GOODY" have high standard deviations indicating more variability in their stock prices.
+  #d. Trimmed mean: Trimmed mean and median absolute deviation (mad) are robust measures of central tendency and dispersion,respectively.
+#They are less affected by outliers. For example, "TCELL" has a trimmed mean closer to its median, suggesting less influence of outliers.
+  #e. Skewness and Kurtosis: They indicate the shape of the distribution of stock prices. A positive skew indicates a right-skewed distribution
+#while negative skewness indicates a left-skewed distribution. "GOODY" has a highly positively skewed distribution. Kurtosis measures the "tailedness"
+#of the distribution. Positive kurtosis suggests heave tails, while negative kurtosis suggests light tails. "GOODY" has a very high kurtosis, indicating
+#heavy tails.
+  #f. Min and Max values: The minimum and maximum values provide insights into the extreme values within the dataset. For example, "GOODY" has a very high
+#maximum value while "ALBRK" has a relatively low maximum value. 
+  #g. Data Quality: We should be aware of extreme values and potential outliers in the data, especially when interpreting statistics. So, the following
+#method is watched:
+
+summary$pc_difference <- (abs(summary$mean - summary$trimmed))*100/summary$mean
+head(summary[order(summary$pc_difference,decreasing=TRUE),],6)
+
+#These six are the stocks with outliers that drastically changes the mean (percentage-wise) compared to others.
+
+#Task 4.2
+#ggpairs(data_wide[,-1])
+#ggcorrplot(data_wide[,-1])
+
+cor_matrix <- cor(data_wide[,-1],use="na.or.complete")
+max(cor_matrix[which(cor_matrix <1)])
+#Looking at the table we see that the maximum correlation is between "SAHOL"  & "AKBNK". Closely followed by  "MGROS" & "TSKB"."SAHOL" is also highly correlated with "TTKOM"
+
+  #a. SAHOL-AKBNK
+# Select only the columns of interest
+data_sub <- data_wide[, c("timestamp", "SAHOL", "AKBNK")]
+
+# Create vectors to store the months and correlations
+months <- character(0)
+correlations <- numeric(0)
+
+# Aggregate daily data to monthly data and calculate correlations
+unique_months <- unique(format(data_sub$timestamp, "%Y-%m"))
+for (month in unique_months) {
+  monthly_data <- data_sub[format(data_sub$timestamp, "%Y-%m") == month, ]
+  
+  # Calculate correlation for the current month
+  corr <- cor(monthly_data$SAHOL, monthly_data$AKBNK,use="complete.obs")
+  
+  # Store the month and correlation
+  months <- c(months, paste0(month, "-01"))
+  correlations <- c(correlations, corr)
+}
+
+# Create a data frame with the months and correlations
+monthly_correlations <- data.frame(Month = months, Correlation = correlations)
+monthly_correlations$Month <- as.Date(monthly_correlations$Month)
+# Visualize the monthly correlations
+ggplot(monthly_correlations, aes(x = Month, y = Correlation)) +
+  geom_line() +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  labs(title = "Monthly Correlation Between SAHOL and AKBNK",
+       x = "Time",
+       y = "Correlation")
+#If we look at the graph SAHOL and AKBNK are highly correlated most of the time,this is to be expected considering the fact 
+#that AKBNK is SAHOL's company. There is an all-time-low in October 2013 in which SAHOL's closing prices dropped by 4% whereas AKBNK's increased
+#by the same ratio, to find the reason we need to know more about the dynamics, business operations, and the context. If we take a closer look at the correlations table
+# we see a fall almost every three months, this could be added to the model as seasonality for further analysis.
+
+  #b. MGROS- TSKB
+# Select only the columns of interest
+data_sub1 <- data_wide[, c("timestamp", "MGROS", "TSKB")]
+
+# Create vectors to store the months and correlations
+months <- character(0)
+correlations <- numeric(0)
+
+# Aggregate daily data to monthly data and calculate correlations
+unique_months <- unique(format(data_sub1$timestamp, "%Y-%m"))
+for (month in unique_months) {
+  monthly_data <- data_sub1[format(data_sub1$timestamp, "%Y-%m") == month, ]
+  
+  # Calculate correlation for the current month
+  corr <- cor(monthly_data$MGROS, monthly_data$TSKB,use="complete.obs")
+  
+  # Store the month and correlation
+  months <- c(months, paste0(month, "-01"))
+  correlations <- c(correlations, corr)
+}
+
+# Create a data frame with the months and correlations
+monthly_correlations1 <- data.frame(Month = months, Correlation = correlations)
+monthly_correlations1$Month <- as.Date(monthly_correlations1$Month)
+# Visualize the monthly correlations
+ggplot(monthly_correlations1, aes(x = Month, y = Correlation)) +
+  geom_line() +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +  
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  labs(title = "Monthly Correlation Between MGROS and TSKB",
+       x = "Time",
+       y = "Correlation")
+
+#There is a significant fall in the correlation in March 2017 negative correlation of 0.77 which is unexpected since normally they are positively and strongly correlated.
+#This kind of a fall happens in February 2018 again. Other than that, their correlation relationship is pretty stable, positive, and strong.
+
+  #c. SAHOL-TTKOM
+# Select only the columns of interest
+data_sub2 <- data_wide[, c("timestamp", "SAHOL", "TTKOM")]
+
+# Create vectors to store the months and correlations
+months <- character(0)
+correlations <- numeric(0)
+
+# Aggregate daily data to monthly data and calculate correlations
+unique_months <- unique(format(data_sub2$timestamp, "%Y-%m"))
+for (month in unique_months) {
+  monthly_data <- data_sub2[format(data_sub2$timestamp, "%Y-%m") == month, ]
+  
+  # Calculate correlation for the current month
+  corr <- cor(monthly_data$SAHOL, monthly_data$TTKOM,use="complete.obs")
+  
+  # Store the month and correlation
+  months <- c(months, paste0(month, "-01"))
+  correlations <- c(correlations, corr)
+}
+
+# Create a data frame with the months and correlations
+monthly_correlations2 <- data.frame(Month = months, Correlation = correlations)
+monthly_correlations2$Month <- as.Date(monthly_correlations2$Month)
+# Visualize the monthly correlations
+ggplot(monthly_correlations2, aes(x = Month, y = Correlation)) +
+  geom_line() +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +  
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+  labs(title = "Monthly Correlation Between SAHOL and TTKOM",
+       x = "Time",
+       y = "Correlation")
+#When we look at the graph we see serious unusual negative correlation between SAHOL and TTKOM around 2018 May.
+#More generally, around spring months between 2017 and 2019, SAHOL and TTKOM stock prices changes in different directions drastically with
+#respect to each other. However, the situation quickly changes when it comes to summer and they are positively correlated and it stays that way
+#most of the year. There is always ups and downs between these two stocks, even if the correlation does not change sign.
+
+
+#Task 4.3
+data_wide_cleaned <- na.omit(data_wide)
+pca_obj = princomp(data_wide_cleaned[,-1],cor=T)
+summary(pca_obj,loadings=T)
+
+#First thing we observe that first 6 components cover almost 90% of variance and the second half of the components just explain the last 1% of the variance.
+#For this reason, I will only closely examine the first 4 components that cover more than 80% of the variance:
+#Since the model is huge I am only able to see the stocks till CEMAS for the loadings and will base my comments on this. This wouldn't affect
+#my performance since I don't have that much knowledge about stock prices anyway.
+
+##Comp1
+#This index can be regarded as the effect of big holding companies on the stock prices. These companies are well-established millionaire-family (like Koç and Sabancı) or international
+#megastars like Coca Cola.This companies stocks also paint a good picture of the general market trend.
+##Comp2
+#Component 2 shows the positive correlation between AKSA,ANACM,ASELS,ASUZU,BANVT as opposed to ARCLK and BAGFS. It is hard to comment on this without knowing specific market dynamics however,
+#I feel like the first group of stocks belong to companies that are highly favored and supported by the government.
+##Comp3
+#Component 3 shows loadings primarily on AKSEN, CEMAS as opposed to AKBNK,ALARK,ARCLK. It suggests that these stocks have some common underlying pattern or factor affecting their prices. This component might capture a 
+#sector-specific trend or economic factors impacting these stocks.
+##Comp4
+#Again, component 4 divides the data into two group. One group has AKSA,ALARK,ASUZU,BAGFS and the other has ALBRK,ASELS,AYGAZ,BRISA. It is again hard to comment
+#on this without knowing market specifics or underlying economic factors.
+
+#Task 4.4
+sahol_akbnk <-fread('/Users/efemyuksel/Downloads/multiTimeline.csv') 
+colnames(sahol_akbnk) <- c("Month","SAHOL","AKBNK","Sabanci_holding_hisse")
+library(lubridate)
+sahol_akbnk$Month=ym(sahol_akbnk$Month)
+mgros_tskb <- fread('/Users/efemyuksel/Downloads/multiTimeline (1).csv')
+colnames(mgros_tskb) <- c("Month","MGROS","TSKB")
+mgros_tskb$Month= ym(mgros_tskb$Month)
+sahol_ttkom <- fread('/Users/efemyuksel/Downloads/multiTimeline (2).csv')
+colnames(sahol_ttkom) <- c("Month","SAHOL","TTKOM")
+sahol_ttkom$Month=ym(sahol_ttkom$Month)
+
+
+
+
+ggplot(sahol_akbnk, aes(x = Month)) +
+  geom_line(aes(y=SAHOL,colour="SAHOL")) +
+  geom_line(aes(y=AKBNK, colour= "AKBNK")) +
+  geom_line(aes(y=Sabanci_holding_hisse, colour= "Sabanci_holding_hisse"))+
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
+  labs(title = "SAHOL vs AKBNK Search Google Trend",
+       x = "Months") +
+  scale_color_manual(values = c("SAHOL" = "darkblue", "AKBNK" = "purple", "Sabanci_holding_hisse" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+#To plot correlations between Google searches:
+
+# Create an empty data frame with the same number of rows as sahol_akbnk
+SA_correlations <- data.frame(Month = character(length(sahol_akbnk$Month)), corr = numeric(length(sahol_akbnk$Month)))
+
+# Assign the values from sahol_akbnk to the Month column
+SA_correlations$Month = sahol_akbnk$Month
+
+# Initialize an empty vector to store correlations
+SA_correlation_values <- numeric(0)
+
+for (i in 1:(nrow(sahol_akbnk) - 2)) {
+  three_monthly_data <- sahol_akbnk[i:(i + 2),]
+  
+  # Calculate correlation for the current month
+  corr <- cor(three_monthly_data$SAHOL, three_monthly_data$AKBNK, use = "complete.obs")
+  
+  # Append the correlation to the vector
+  SA_correlation_values <- c(SA_correlation_values, corr)
+}
+
+# Assign the correlation values to the corr column in correlations data frame
+SA_correlations$corr <- c(NA,NA,SA_correlation_values)
+
+
+# Visualize the monthly correlations
+SA_correlations = na.omit(SA_correlations)
+ggplot(SA_correlations, aes(x = Month, y = corr)) +
+  geom_line() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +  
+  labs(title = "3-Monthly Correlation Between SAHOL and AKBNK Google Search",
+       x = "Time",
+       y = "Correlation") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+#As we can see the Google searches for "IST:SAHOL" and "IST:AKBNK" are almost always highly correlated, rarely at or close to correlation=0 line.
+#We can also observe the big negative correlation at October 2013 we talked about in the previous tasks.The big negative correlation in this plot may
+#stem from the delay effect. If we closely examine the first plot we can see that the search of AKBNK lags behind the search of SAHOL. For a closer and more
+#accurate analysis one can perform correlation with lagged values.
+
+
+ggplot(mgros_tskb, aes(x = Month)) +
+  geom_line(aes(y=MGROS,colour="MGROS")) +
+  geom_line(aes(y=TSKB, colour= "TSKB")) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
+  labs(title = "MGROS vs TSKB Search Google Trend",
+       x = "Months") +
+  scale_color_manual(values = c("MGROS" = "orange", "TSKB" = "purple")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Create an empty data frame with the same number of rows as mgros_tskb
+MT_correlations <- data.frame(Month = character(length(mgros_tskb$Month)), corr = numeric(length(mgros_tskb$Month)))
+
+# Assign the values from mgros_tskb to the Month column
+MT_correlations$Month = mgros_tskb$Month
+
+# Initialize an empty vector to store correlations
+MT_correlation_values <- numeric(0)
+
+for (i in 1:(nrow(mgros_tskb) - 2)) {
+  three_monthly_data <- mgros_tskb[i:(i + 2),]
+  
+  # Calculate correlation for the current month
+  corr <- cor(three_monthly_data$MGROS, three_monthly_data$TSKB, use = "complete.obs")
+  
+  # Append the correlation to the vector
+  MT_correlation_values <- c(MT_correlation_values, corr)
+}
+
+# Assign the correlation values to the corr column in correlations data frame
+MT_correlations$corr <- c(NA,NA,MT_correlation_values)
+
+
+# Visualize the monthly correlations
+MT_correlations = na.omit(MT_correlations)
+ggplot(MT_correlations, aes(x = Month, y = corr)) +
+  geom_line() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +  
+  labs(title = "3-Monthly Correlation Between MGROS and TSKB Google Search",
+       x = "Time",
+       y = "Correlation") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+#Here again we observe some interesting things between the Google Trends and Stock Prices data. For example, we can see the high negativeness of correlation in prices in March 2017, in the Google trends
+#data as well. This may suggest that these two stocks' investors reflects their investing behaviors in their Google search mechanisms too. For the other two date noted above in the Task 4.2, namely February
+#2018 and October 2016, we don't see a as direct relation as the March 2017 case. However, if we look closely, we can see that couple of months before that said dates, some big changes in the Google trends
+#correlation data. For example, the negative correlation in August 2016 with Google trends, may have presented itself in October 2016 in stock prices' correlation.
+#Or the high positive correlation for a long time towards the end of 2017 could be the reason behind the negative stock prices correlation in the beginning of 2018. 
+#We can explain this by if something becomes too popular in the stock market, investors retreat from it. Maybe the popularity of MGROS-TSKB together, pushed investors the pick a side.
+
+
+ggplot(sahol_ttkom, aes(x = Month)) +
+  geom_line(aes(y=SAHOL,colour="SAHOL")) +
+  geom_line(aes(y=TTKOM, colour= "TTKOM")) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y") +
+  labs(title = "SAHOL vs TTKOM Search Google Trend",
+       x = "Months") +
+  scale_color_manual(values = c("SAHOL" = "darkblue", "TTKOM" = "orange")) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Create an empty data frame with the same number of rows as sahol_ttkom
+ST_correlations <- data.frame(Month = character(length(sahol_ttkom$Month)), corr = numeric(length(sahol_ttkom$Month)))
+
+# Assign the values from sahol_ttkom to the Month column
+ST_correlations$Month = sahol_ttkom$Month
+
+# Initialize an empty vector to store correlations
+ST_correlation_values <- numeric(0)
+
+for (i in 1:(nrow(sahol_ttkom) - 2)) {
+  three_monthly_data <- sahol_ttkom[i:(i + 2),]
+  
+  # Calculate correlation for the current month
+  corr <- cor(three_monthly_data$SAHOL, three_monthly_data$TTKOM, use = "complete.obs")
+  
+  # Append the correlation to the vector
+  ST_correlation_values <- c(ST_correlation_values, corr)
+}
+
+# Assign the correlation values to the corr column in correlations data frame
+ST_correlations$corr <- c(NA,NA,ST_correlation_values)
+
+
+# Visualize the monthly correlations
+ST_correlations <- na.omit(ST_correlations)
+ggplot(ST_correlations, aes(x = Month, y = corr)) +
+  geom_line() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +  
+  labs(title = "3-Monthly Correlation Between SAHOL and TTKOM Google Search",
+       x = "Time",
+       y = "Correlation") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))
+#We have talked about the ups & downs of the correlation of SAHOL and TTKOM stock prices, this is also observed with the Google trends data correlations.We again observe the pattern of negative 
+#correlations around spring months and positive correlations rest of the year. We also observe the grave negative correlation in May 2018 in the Google trends data as well. As far as the harmony between
+#Google trends and Stock prices, SAHOL-TTKOM exercise is the best example. We see the same underlying patterns in the both of the plots.Although, Google trends data is more volatile as expected.
+
