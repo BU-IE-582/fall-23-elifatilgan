@@ -7,6 +7,6 @@ This is the [Rcode](https://bu-ie-582.github.io/fall-23-elifatilgan/HW1/HW1.R) a
 This is the [Rcode](https://bu-ie-582.github.io/fall-23-elifatilgan/HW2/hw2.R) and [html](https://bu-ie-582.github.io/fall-23-elifatilgan/HW2/HW2.html) files of my second assignment.
 
 ## Project
-This is the [Rcode](https://bu-ie-582.github.io/fall-23-elifatilgan/Project/project-elif_atilgan.R) and [pdf](https://bu-ie-582.github.io/fall-23-elifatilgan/Project/IE582-%20Project.pdf) files of my project.
+This is the [Rcode](https://bu-ie-582.github.io/fall-23-elifatilgan/Project/project-elif_atilgan.R) and [pdf](https://bu-ie-582.github.io/fall-23-elifatilgan/Project/IE582-Project.pdf) files of my project.
 
 
